@@ -7,37 +7,39 @@ class String
   # Colors Hash
   #
   COLORS = {
-    :black          => 0,
-    :red            => 1,
-    :green          => 2,
-    :yellow         => 3,
-    :blue           => 4,
-    :magenta        => 5,
-    :cyan           => 6,
-    :white          => 7,
-    :default        => 9,
+    black:         0,
+    red:           1,
+    green:         2,
+    yellow:        3,
+    blue:          4,
+    magenta:       5,
+    cyan:          6,
+    white:         7,
+    default:       9,
 
-    :light_black    => 10,
-    :light_red      => 11,
-    :light_green    => 12,
-    :light_yellow   => 13,
-    :light_blue     => 14,
-    :light_magenta  => 15,
-    :light_cyan     => 16,
-    :light_white    => 17
+    light_black:   10,
+    light_red:     11,
+    light_green:   12,
+    light_yellow:  13,
+    light_blue:    14,
+    light_magenta: 15,
+    light_cyan:    16,
+    light_white:   17,
   }
 
   #
   # Modes Hash
   #
   MODES = {
-    :default        => 0, # Turn off all attributes
-    :bold           => 1, # Set bold mode
-    :underline      => 4, # Set underline mode
-    :blink          => 5, # Set blink mode
-    :swap           => 7, # Exchange foreground and background colors
-    :hide           => 8  # Hide text (foreground color would be the same as background)
+    default:   0, # Turn off all attributes
+    bold:      1, # Set bold mode
+    underline: 4, # Set underline mode
+    blink:     5, # Set blink mode
+    swap:      7, # Exchange foreground and background colors
+    hide:      8, # Hide text (foreground color would be the same as background)
   }
+
+  @@colorize_parameters = {}
 
   protected
 
@@ -46,10 +48,14 @@ class String
   #
   def set_color_parameters(params)
     if (params.instance_of?(Hash))
-      @color       = params[:color]
-      @background  = params[:background]
-      @mode        = params[:mode]
-      @uncolorized = params[:uncolorized]
+      @@colorize_parameters[object_id] = {
+        color:       params[:color],
+        background:  params[:background],
+        mode:        params[:mode],
+        uncolorized: params[:uncolorized],
+      }
+      #hook for cleanup colorize_parameters hash
+      ObjectSpace.define_finalizer(self, proc {|id| @@colorize_parameters.delete(id)})
       self
     end
   end
@@ -79,21 +85,23 @@ class String
       raise 'You must gem install win32console to use colorize on Windows'
     end
 
-    color_parameters = {}
+    color_parameters = @@colorize_parameters[object_id] || {}
 
     if (params.instance_of?(Hash))
-      color_parameters[:color]      = COLORS[params[:color]]
-      color_parameters[:background] = COLORS[params[:background]]
-      color_parameters[:mode]       = MODES[params[:mode]]
+      color_parameters[:color]      = COLORS[params[:color]]      if params[:color] && COLORS[params[:color]]
+      color_parameters[:background] = COLORS[params[:background]] if params[:background] && COLORS[params[:background]]
+      color_parameters[:mode]       = MODES[params[:mode]]        if params[:mode] && MODES[params[:mode]]
     elsif (params.instance_of?(Symbol))
-      color_parameters[:color] = COLORS[params]
+      color_parameters[:color]      = COLORS[params]              if params && COLORS[params]
     end
 
-    color_parameters[:color] ||= @color ||= COLORS[:default]
-    color_parameters[:background] ||= @background ||= COLORS[:default]
-    color_parameters[:mode] ||= @mode ||= MODES[:default]
+    # set defaults
+    color_parameters[:color]      ||= COLORS[:default]
+    color_parameters[:background] ||= COLORS[:default]
+    color_parameters[:mode]       ||= MODES[:default]
 
-    color_parameters[:uncolorized] ||= @uncolorized ||= self.dup
+    #strore uncolorized string
+    color_parameters[:uncolorized] ||= self.dup
 
     # Calculate bright mode
     color_parameters[:color] += 50 if color_parameters[:color] > 10
@@ -107,14 +115,14 @@ class String
   # Return uncolorized string
   #
   def uncolorize
-    @uncolorized || self
+    (@@colorize_parameters[object_id] && @@colorize_parameters[object_id][:uncolorized]) || self
   end
 
   #
   # Return true if string is colorized
   #
   def colorized?
-    !!@uncolorized
+    !!(@@colorize_parameters[object_id] && @@colorize_parameters[object_id][:uncolorized])
   end
 
   #
